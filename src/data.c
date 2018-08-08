@@ -762,7 +762,6 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         int dw = (ow*jitter);
         int dh = (oh*jitter);
 
-        // Denis Kravchenko changes
         int pleft  = rand_uniform_strong(-dw, dw);
         int ptop   = rand_uniform_strong(-dh, dh);
 
@@ -800,30 +799,6 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         float dy = ((float)ptop /oh)/sy;
 
         fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
-
-        /*
-        static int data_is_saved = 0;
-        if(data_is_saved == 0) {
-            data_is_saved = 1;
-            float *truth =  d.y.vals[i];
-            float _x, _y, _w, _h;
-            int _id;
-            for(int i = 0; i < boxes; i++) {
-                _x = truth[i*5+0];
-                _y = truth[i*5+1];
-                _w = truth[i*5+2];
-                _h = truth[i*5+3];
-                _id = truth[i*5+4];
-                _x *= ai.w;
-                _y *= ai.h;
-                _w *= ai.w;
-                _h *= ai.h;
-                draw_box(ai, _x - _w/2, _y - _h/2., _x + _w/2., _y + _h/2., 1, 1, 0);
-            }
-            show_image(ai, "aug");
-            cvWaitKey(0);
-        }*/
-        //end Denis Kravchenko code
 
         cvReleaseImage(&src);
     }
@@ -878,8 +853,6 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         pleft += dx_ratio;
         ptop += dy_ratio;
 
-//        printf(" pleft: %d\n ptop: %d\n sw: %d\n sh: %d\n", pleft, ptop, swidth ,sheight);
-        image cropped = crop_image(orig, pleft, ptop, swidth, sheight);
         image sized = resize_image(cropped, w, h);
 
         int flip = use_flip ? random_gen()%2 : 0;
@@ -895,23 +868,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
         fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
 
-        /*float x, y, w, h;
-        int id;
-        for(int j = 0; j < boxes; j++) {
-            float* truth = d.y.vals[i];
-            box b;
-            b.x = truth[j*5+0];
-            b.y = truth[j*5+1];
-            b.w = truth[j*5+2];
-            b.h = truth[j*5+3];
-            draw_bbox(sized, b, 1, 1, 1, 0);
-        }
-
-        show_image(sized, "sized.jpg");*/
-
         free_image(orig);
         free_image(cropped);
-        //exit(0);
     }
     free(random_paths);
     return d;
