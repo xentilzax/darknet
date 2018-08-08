@@ -1720,8 +1720,9 @@ image resize_image(image im, int w, int h)
     image resized = make_image(w, h, im.c);   
     image part = make_image(w, im.h, im.c);
     int r, c, k;
-    float w_scale = (float)(im.w - 1) / (w - 1);
-    float h_scale = (float)(im.h - 1) / (h - 1);
+    float w_scale = (float)(im.w) / w;
+    float h_scale = (float)(im.h) / h;
+
     for(k = 0; k < im.c; ++k){
         for(r = 0; r < im.h; ++r){
             for(c = 0; c < w; ++c){
