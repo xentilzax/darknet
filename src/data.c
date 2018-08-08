@@ -195,10 +195,10 @@ void correct_boxes(box_label *boxes, int n, float dx, float dy, float sx, float 
             boxes[i].h = 999999;
             continue;
         }
-        boxes[i].left   = boxes[i].left  * sx - dx;
-        boxes[i].right  = boxes[i].right * sx - dx;
-        boxes[i].top    = boxes[i].top   * sy - dy;
-        boxes[i].bottom = boxes[i].bottom* sy - dy;
+        boxes[i].left   = boxes[i].left  * sx + dx;
+        boxes[i].right  = boxes[i].right * sx + dx;
+        boxes[i].top    = boxes[i].top   * sy + dy;
+        boxes[i].bottom = boxes[i].bottom* sy + dy;
 
         if(flip){
             float swap = boxes[i].left;
@@ -299,7 +299,7 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
 }
 
 void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, int flip, float dx, float dy, float sx, float sy,
-    int small_object, int net_w, int net_h)
+                          int small_object, int net_w, int net_h)
 {
     char labelpath[4096];
     replace_image_to_label(path, labelpath);
@@ -762,33 +762,68 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         int dw = (ow*jitter);
         int dh = (oh*jitter);
 
+        // Denis Kravchenko changes
         int pleft  = rand_uniform_strong(-dw, dw);
-        int pright = rand_uniform_strong(-dw, dw);
         int ptop   = rand_uniform_strong(-dh, dh);
-        int pbot   = rand_uniform_strong(-dh, dh);
 
-        int swidth =  ow - pleft - pright;
-        int sheight = oh - ptop - pbot;
+        int swidth =  ow;
+        int sheight = oh;
 
-        float sx = (float)swidth  / ow;
-        float sy = (float)sheight / oh;
+        float aspect_ratio_img = (float) ow / oh;
+        float aspect_ratio_net = (float) w / h;
+
+        int dx_ratio = 0;
+        int dy_ratio = 0;
+        if(aspect_ratio_net < aspect_ratio_img) {
+            sheight = ow / aspect_ratio_net;
+            dy_ratio = (sheight - abs(ptop) - oh)/2;
+        } else {
+            swidth = oh * aspect_ratio_net;
+            dx_ratio = (swidth - abs(pleft) - ow)/2;
+        }
+
+        pleft += dx_ratio;
+        ptop += dy_ratio;
 
         int flip = use_flip ? random_gen()%2 : 0;
-
-        float dx = ((float)pleft/ow)/sx;
-        float dy = ((float)ptop /oh)/sy;
 
         float dhue = rand_uniform_strong(-hue, hue);
         float dsat = rand_scale(saturation);
         float dexp = rand_scale(exposure);
 
-        image ai = image_data_augmentation(src, w, h, pleft, ptop, swidth, sheight, flip, jitter, dhue, dsat, dexp);
+        image ai = image_data_augmentation(src, w, h, pleft, ptop, swidth, sheight, flip, dhue, dsat, dexp);
         d.X.vals[i] = ai.data;
-        
-        //show_image(ai, "aug");
-        //cvWaitKey(0);
+
+        float sx = (float)swidth / ow;
+        float sy = (float)sheight / oh;
+        float dx = ((float)pleft/ow)/sx;
+        float dy = ((float)ptop /oh)/sy;
 
         fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
+
+        /*
+        static int data_is_saved = 0;
+        if(data_is_saved == 0) {
+            data_is_saved = 1;
+            float *truth =  d.y.vals[i];
+            float _x, _y, _w, _h;
+            int _id;
+            for(int i = 0; i < boxes; i++) {
+                _x = truth[i*5+0];
+                _y = truth[i*5+1];
+                _w = truth[i*5+2];
+                _h = truth[i*5+3];
+                _id = truth[i*5+4];
+                _x *= ai.w;
+                _y *= ai.h;
+                _w *= ai.w;
+                _h *= ai.h;
+                draw_box(ai, _x - _w/2, _y - _h/2., _x + _w/2., _y + _h/2., 1, 1, 0);
+            }
+            show_image(ai, "aug");
+            cvWaitKey(0);
+        }*/
+        //end Denis Kravchenko code
 
         cvReleaseImage(&src);
     }
@@ -810,7 +845,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
     d.y = make_matrix(n, 5 * boxes);
     for (i = 0; i < n; ++i) {
-        image orig = load_image(random_paths[i], 0, 0, c);
+        const char *filename = random_paths[i];
+        image orig = load_image(filename, 0, 0, c);
 
         int oh = orig.h;
         int ow = orig.w;
@@ -819,31 +855,63 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         int dh = (oh*jitter);
 
         int pleft = rand_uniform_strong(-dw, dw);
-        int pright = rand_uniform_strong(-dw, dw);
+        //int pright = rand_uniform_strong(-dw, dw);
         int ptop = rand_uniform_strong(-dh, dh);
-        int pbot = rand_uniform_strong(-dh, dh);
+        //int pbot = rand_uniform_strong(-dh, dh);
 
-        int swidth = ow - pleft - pright;
-        int sheight = oh - ptop - pbot;
+        int swidth =  ow;
+        int sheight = oh;
 
-        float sx = (float)swidth / ow;
-        float sy = (float)sheight / oh;
+        float aspect_ratio_img = (float) ow / oh;
+        float aspect_ratio_net = (float) w / h;
 
-        int flip = use_flip ? random_gen() % 2 : 0;
+        int dx_ratio = 0;
+        int dy_ratio = 0;
+        if(aspect_ratio_net < aspect_ratio_img) {
+            sheight = ow / aspect_ratio_net;
+            dy_ratio = (sheight - abs(ptop) - oh)/2;
+        } else {
+            swidth = oh * aspect_ratio_net;
+            dx_ratio = (swidth - abs(pleft) - ow)/2;
+        }
+
+        pleft += dx_ratio;
+        ptop += dy_ratio;
+
+//        printf(" pleft: %d\n ptop: %d\n sw: %d\n sh: %d\n", pleft, ptop, swidth ,sheight);
         image cropped = crop_image(orig, pleft, ptop, swidth, sheight);
-
-        float dx = ((float)pleft / ow) / sx;
-        float dy = ((float)ptop / oh) / sy;
-
         image sized = resize_image(cropped, w, h);
+
+        int flip = use_flip ? random_gen()%2 : 0;
         if (flip) flip_image(sized);
+
         random_distort_image(sized, hue, saturation, exposure);
         d.X.vals[i] = sized.data;
 
-        fill_truth_detection(random_paths[i], boxes, d.y.vals[i], classes, flip, dx, dy, 1. / sx, 1. / sy, small_object, w, h);
+        float sx = (float)swidth / ow;
+        float sy = (float)sheight / oh;
+        float dx = ((float)pleft/ow)/sx;
+        float dy = ((float)ptop /oh)/sy;
+
+        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
+
+        /*float x, y, w, h;
+        int id;
+        for(int j = 0; j < boxes; j++) {
+            float* truth = d.y.vals[i];
+            box b;
+            b.x = truth[j*5+0];
+            b.y = truth[j*5+1];
+            b.w = truth[j*5+2];
+            b.h = truth[j*5+3];
+            draw_bbox(sized, b, 1, 1, 1, 0);
+        }
+
+        show_image(sized, "sized.jpg");*/
 
         free_image(orig);
         free_image(cropped);
+        //exit(0);
     }
     free(random_paths);
     return d;

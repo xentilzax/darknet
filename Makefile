@@ -1,9 +1,9 @@
 GPU=0
 CUDNN=0
 CUDNN_HALF=0
-OPENCV=0
-AVX=0
-OPENMP=0
+OPENCV=1
+AVX=1
+OPENMP=1
 LIBSO=0
 
 # set GPU=1 and CUDNN=1 to speedup on GPU
@@ -64,10 +64,16 @@ endif
 CFLAGS+=$(OPTS)
 
 ifeq ($(OPENCV), 1) 
-COMMON+= -DOPENCV
-CFLAGS+= -DOPENCV
-LDFLAGS+= `pkg-config --libs opencv` 
-COMMON+= `pkg-config --cflags opencv` 
+# COMMON+= -DOPENCV
+# CFLAGS+= -DOPENCV
+# LDFLAGS+= `pkg-config --libs opencv` 
+# COMMON+= `pkg-config --cflags opencv` 
+LDFLAGS += \
+    -l"opencv_video" \
+    -l"opencv_highgui" \
+    -l"opencv_imgproc" \
+    -l"opencv_imgcodecs" \
+    -l"opencv_core"
 endif
 
 ifeq ($(OPENMP), 1)
@@ -121,6 +127,10 @@ $(LIBNAMESO): $(OBJS) src/yolo_v2_class.hpp src/yolo_v2_class.cpp
 	
 $(APPNAMESO): $(LIBNAMESO) src/yolo_v2_class.hpp src/yolo_console_dll.cpp
 	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
+endif
+
+ifeq ($(LIBSO), 0) 
+LDFLAGS += -no-pie
 endif
 
 $(EXEC): $(OBJS)
