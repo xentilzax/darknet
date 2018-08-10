@@ -38,7 +38,7 @@ float get_color(int c, int x, int max)
     return r;
 }
 
-static float get_pixel(image m, int x, int y, int c)
+static inline float get_pixel(image m, int x, int y, int c)
 {
     assert(x < m.w && y < m.h && c < m.c);
     return m.data[c*m.h*m.w + y*m.w + x];
@@ -1721,9 +1721,47 @@ image resize_image(image im, int w, int h)
     image resized = make_image(w, h, im.c);
     image part = make_image(w, im.h, im.c);
     int r, c, k;
-    float w_scale = (float)(im.w) / w;
-    float h_scale = (float)(im.h) / h;
+    float w_scale = (float)(im.w - 1) / (w -1);
+    float h_scale = (float)(im.h - 1) / (h -1);
+    printf("w_scale = %f, h_scale = %f\n", w_scale, h_scale);
 
+    float val1, val2, val;
+    for(k = 0; k < im.c; ++k){
+        for(c = 0; c < w-1 ; ++c){
+            for(r = 0; r < h-1; ++r){
+                float sx = c * w_scale;
+                float sy = r * h_scale;
+                int ix = (int) sx;
+                int iy = (int) sy;
+                float dx = sx - ix;
+                float dy = sy - iy;
+
+                val1 = (1 - dx) * get_pixel(im, ix, iy, k) + dx * get_pixel(im, ix+1, iy, k);
+                val2 = (1 - dx) * get_pixel(im, ix, iy+1, k) + dx * get_pixel(im, ix+1, iy+1, k);
+                val  = (1 - dy) * val1 + dx * val2;
+                set_pixel(resized, c, r, k, val);
+            }
+        }
+        for(c = 0; c < w-1 ; ++c){
+            float sx = c * w_scale;
+            int ix = (int) sx;
+            float dx = sx - ix;
+
+            val = (1 - dx) * get_pixel(im, ix, im.h-1, k) + dx * get_pixel(im, ix+1, im.h-1, k);
+            set_pixel(resized, c, h-1, k, val);
+        }
+        for(r = 0; r < h-1; ++r){
+            float sy = r * h_scale;
+            int iy = (int) sy;
+            float dy = sy - iy;
+
+            val = (1 - dy) * get_pixel(im, im.w-1, iy, k) + dy * get_pixel(im, im.w-1, iy+1, k);
+            set_pixel(resized, w-1, r, k, val);
+        }
+        val = get_pixel(im, im.w-1, im.h-1, k);
+        set_pixel(resized, w-1, h-1, k, val);
+    }
+/*
     for(k = 0; k < im.c; ++k){
         for(r = 0; r < im.h; ++r){
             for(c = 0; c < w; ++c){
@@ -1758,6 +1796,7 @@ image resize_image(image im, int w, int h)
     }
 
     free_image(part);
+    */
     return resized;
 }
 
