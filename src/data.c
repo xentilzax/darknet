@@ -717,6 +717,7 @@ data load_data_swag(char **paths, int n, int classes, float jitter)
     return d;
 }
 
+/*
 #ifdef OPENCV
 #include "opencv2/highgui/highgui_c.h"
 #include "opencv2/imgproc/imgproc_c.h"
@@ -756,14 +757,14 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
             //exit(0);
         }
 
+
+        cvMat
+
         int oh = src->height;
         int ow = src->width;
 
-        int dw = (ow*jitter);
-        int dh = (oh*jitter);
-
-        int pleft  = rand_uniform_strong(-dw, dw);
-        int ptop   = rand_uniform_strong(-dh, dh);
+        float pleft = rand_uniform_strong(-jitter, jitter);
+        float ptop = rand_uniform_strong(-jitter, jitter);
 
         int swidth =  ow;
         int sheight = oh;
@@ -781,8 +782,18 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
             dx_ratio = (swidth - abs(pleft) - ow)/2;
         }
 
-        pleft += dx_ratio;
-        ptop += dy_ratio;
+
+        float pleft = pleft + (float)(w - new_w) / 2.f / w;
+        float ptop = ptop + (float)(h - new_h) / 2.f / h;
+//        pleft += dx_ratio;
+//        ptop += dy_ratio;
+
+        int new_w;
+        int new_h;
+
+        resize_saving_aspect_ratio(&new_w, &new_h, im.w, im.h, w, h);
+
+
 
         int flip = use_flip ? random_gen()%2 : 0;
 
@@ -793,12 +804,17 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         image ai = image_data_augmentation(src, w, h, pleft, ptop, swidth, sheight, flip, dhue, dsat, dexp);
         d.X.vals[i] = ai.data;
 
-        float sx = (float)swidth / ow;
-        float sy = (float)sheight / oh;
-        float dx = ((float)pleft/ow)/sx;
-        float dy = ((float)ptop /oh)/sy;
+        int new_w;
+        int new_h;
 
-        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
+        resize_saving_aspect_ratio(&new_w, &new_h, ow, oh, w, h);
+
+        float sx = (float) new_w / w;
+        float sy = (float) new_h / h;
+        float dx = pleft + (float)(w - new_w) / 2.f / w;
+        float dy = ptop + (float)(h - new_h) / 2.f / h;
+
+        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, sx, sy, small_object, w, h);
 
         cvReleaseImage(&src);
     }
@@ -806,6 +822,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
     return d;
 }
 #else    // OPENCV
+*/
 data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float hue, float saturation, float exposure, int small_object)
 {
     c = c ? c : 3;
@@ -826,55 +843,37 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         int oh = orig.h;
         int ow = orig.w;
 
-        int dw = (ow*jitter);
-        int dh = (oh*jitter);
+        float pleft = rand_uniform_strong(-jitter, jitter);
+        float ptop = rand_uniform_strong(-jitter, jitter);
 
-        int pleft = rand_uniform_strong(-dw, dw);
-        //int pright = rand_uniform_strong(-dw, dw);
-        int ptop = rand_uniform_strong(-dh, dh);
-        //int pbot = rand_uniform_strong(-dh, dh);
-
-        int swidth =  ow;
-        int sheight = oh;
-
-        float aspect_ratio_img = (float) ow / oh;
-        float aspect_ratio_net = (float) w / h;
-
-        int dx_ratio = 0;
-        int dy_ratio = 0;
-        if(aspect_ratio_net < aspect_ratio_img) {
-            sheight = ow / aspect_ratio_net;
-            dy_ratio = (sheight - abs(ptop) - oh)/2;
-        } else {
-            swidth = oh * aspect_ratio_net;
-            dx_ratio = (swidth - abs(pleft) - ow)/2;
-        }
-
-        pleft += dx_ratio;
-        ptop += dy_ratio;
-
-        image sized = resize_image(cropped, w, h);
+        image boxed = letterbox_image(orig, w, h);
+        image cropped = crop_image(boxed, pleft*w, ptop*h, w, h);
 
         int flip = use_flip ? random_gen()%2 : 0;
-        if (flip) flip_image(sized);
+        if (flip) flip_image(cropped);
 
-        random_distort_image(sized, hue, saturation, exposure);
-        d.X.vals[i] = sized.data;
+        random_distort_image(cropped, hue, saturation, exposure);
+        d.X.vals[i] = cropped.data;
 
-        float sx = (float)swidth / ow;
-        float sy = (float)sheight / oh;
-        float dx = ((float)pleft/ow)/sx;
-        float dy = ((float)ptop /oh)/sy;
+        int new_w;
+        int new_h;
 
-        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, small_object, w, h);
+        resize_saving_aspect_ratio(&new_w, &new_h, ow, oh, w, h);
+
+        float sx = (float) new_w / w;
+        float sy = (float) new_h / h;
+        float dx = pleft + (float)(w - new_w) / 2.f / w;
+        float dy = ptop + (float)(h - new_h) / 2.f / h;
+
+        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, sx, sy, small_object, w, h);
 
         free_image(orig);
-        free_image(cropped);
+        free_image(boxed);
     }
     free(random_paths);
     return d;
 }
-#endif    // OPENCV
+//#endif    // OPENCV
 
 void *load_thread(void *ptr)
 {
