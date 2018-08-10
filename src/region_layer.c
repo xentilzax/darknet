@@ -80,11 +80,13 @@ box get_region_box(float *x, float *biases, int n, int index, int i, int j, int 
     box b;
     b.x = (i + logistic_activate(x[index + 0])) / w;
     b.y = (j + logistic_activate(x[index + 1])) / h;
-    b.w = exp(x[index + 2]) * biases[2*n];
-    b.h = exp(x[index + 3]) * biases[2*n+1];
     if(DOABS){
         b.w = exp(x[index + 2]) * biases[2*n]   / w;
         b.h = exp(x[index + 3]) * biases[2*n+1] / h;
+    } else {
+        b.w = exp(x[index + 2]) * biases[2*n];
+        b.h = exp(x[index + 3]) * biases[2*n+1];
+
     }
     return b;
 }
@@ -317,11 +319,12 @@ void forward_region_layer(const region_layer l, network_state state)
                 int index = size*(j*l.w*l.n + i*l.n + n) + b*l.outputs;
                 box pred = get_region_box(l.output, l.biases, n, index, i, j, l.w, l.h);
                 if(l.bias_match){
-                    pred.w = l.biases[2*n];
-                    pred.h = l.biases[2*n+1];
                     if(DOABS){
                         pred.w = l.biases[2*n]/l.w;
                         pred.h = l.biases[2*n+1]/l.h;
+                    } else {
+                        pred.w = l.biases[2*n];
+                        pred.h = l.biases[2*n+1];
                     }
                 }
                 //printf("pred: (%f, %f) %f x %f\n", pred.x, pred.y, pred.w, pred.h);
