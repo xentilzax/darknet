@@ -418,8 +418,8 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
     args.w = net.w;
     args.h = net.h;
     args.c = net.c;
-    args.type = IMAGE_DATA;
-    //args.type = LETTERBOX_DATA;
+    //args.type = IMAGE_DATA;
+    args.type = LETTERBOX_DATA;
 
     for (t = 0; t < nthreads; ++t) {
         args.path = paths[i + t];
@@ -626,8 +626,8 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
     args.w = net.w;
     args.h = net.h;
     args.c = net.c;
-    args.type = IMAGE_DATA;
-    //args.type = LETTERBOX_DATA;
+    //args.type = IMAGE_DATA;
+    args.type = LETTERBOX_DATA;
 
     //const float thresh_calc_avg_iou = 0.24;
     float avg_iou = 0;
