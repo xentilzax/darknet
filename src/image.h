@@ -32,6 +32,7 @@ image random_augment_image(image im, float angle, float aspect, int low, int hig
 void random_distort_image(image im, float hue, float saturation, float exposure);
 YOLODLL_API image resize_image(image im, int w, int h);
 void fill_image(image m, float s);
+void resize_saving_aspect_ratio(int* new_w, int* new_h, int im_w, int im_h, int w, int h);
 void letterbox_image_into(image im, int w, int h, image boxed);
 YOLODLL_API image letterbox_image(image im, int w, int h);
 image resize_min(image im, int min);
