@@ -29,6 +29,7 @@ void scale_image(image m, float s);
 image crop_image(image im, int dx, int dy, int w, int h);
 image random_crop_image(image im, int w, int h);
 image random_augment_image(image im, float angle, float aspect, int low, int high, int size);
+image image_transform(image im, int w, int h, float* T, float* v, float hue, float saturation, float exposure);
 void random_distort_image(image im, float hue, float saturation, float exposure);
 YOLODLL_API image resize_image(image im, int w, int h);
 void fill_image(image m, float s);

@@ -3,9 +3,11 @@
 #include "image.h"
 #include "cuda.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -221,6 +223,70 @@ void correct_boxes(box_label *boxes, int n, float dx, float dy, float sx, float 
     }
 }
 
+void transform_point(float* y, float* x, float* T, float* v)
+{
+    x[0] -= 0.5;
+    x[1] -= 0.5;
+    y[0] = T[0] * x[0] + T[1] * x[1] + 0.5 + v[0];
+    y[1] = T[2] * x[0] + T[3] * x[1] + 0.5 + v[1];
+}
+
+void transform_boxes(box_label *boxes, int n, float* T, float* v)
+{
+    int i;
+    for(i = 0; i < n; ++i){
+        if(boxes[i].x == 0 && boxes[i].y == 0) {
+            boxes[i].x = 999999;
+            boxes[i].y = 999999;
+            boxes[i].w = 999999;
+            boxes[i].h = 999999;
+            continue;
+        }
+        //y = T*x + v
+        float p[2*4], x[2];
+
+        x[0] = boxes[i].left; x[1] = boxes[i].top;
+        transform_point(p+0, x, T, v);
+
+        x[0] = boxes[i].right; x[1] = boxes[i].top;
+        transform_point(p+2, x, T, v);
+
+        x[0] = boxes[i].right, x[1] = boxes[i].bottom;
+        transform_point(p+4, x, T, v);
+
+        x[0] = boxes[i].left; x[1] = boxes[i].bottom;
+        transform_point(p+6, x, T, v);
+
+        float left = p[0];
+        float right = p[0];
+        float top = p[1];
+        float bottom = p[1];
+
+        for(int i = 0; i < 4; i++) {
+            if( p[i*2 + 0] < left ) left = p[i*2 + 0];
+            if( p[i*2 + 0] > right ) right = p[i*2 + 0];
+            if( p[i*2 + 1] < top ) top = p[i*2 + 1];
+            if( p[i*2 + 1] > bottom) bottom = p[i*2 + 1];
+        }
+
+        boxes[i].left   = left;
+        boxes[i].right  = right;
+        boxes[i].top    = top;
+        boxes[i].bottom = bottom;
+
+
+        boxes[i].left =  constrain(0, 1, boxes[i].left);
+        boxes[i].right = constrain(0, 1, boxes[i].right);
+        boxes[i].top =   constrain(0, 1, boxes[i].top);
+        boxes[i].bottom =   constrain(0, 1, boxes[i].bottom);
+
+        boxes[i].x = (boxes[i].left+boxes[i].right)/2;
+        boxes[i].y = (boxes[i].top+boxes[i].bottom)/2;
+        boxes[i].w = (boxes[i].right - boxes[i].left);
+        boxes[i].h = (boxes[i].bottom - boxes[i].top);
+    }
+}
+
 void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, float dy, float sx, float sy)
 {
     char labelpath[4096];
@@ -298,6 +364,7 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
     free(boxes);
 }
 
+/*
 void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, int flip, float dx, float dy, float sx, float sy,
                           int small_object, int net_w, int net_h)
 {
@@ -379,7 +446,90 @@ void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, 
     }
     free(boxes);
 }
+*/
+void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, float* T, float* v, int small_object, int net_w, int net_h)
+{
+    char labelpath[4096];
+    replace_image_to_label(path, labelpath);
 
+    int count = 0;
+    int i;
+    box_label *boxes = read_boxes(labelpath, &count);
+    float lowest_w = 1.F / net_w;
+    float lowest_h = 1.F / net_h;
+
+    randomize_boxes(boxes, count);
+    transform_boxes(boxes, count, T, v);
+
+    if (small_object == 1) {
+        for (i = 0; i < count; ++i) {
+            if (boxes[i].w < lowest_w) boxes[i].w = lowest_w;
+            if (boxes[i].h < lowest_h) boxes[i].h = lowest_h;
+        }
+    }
+
+    if (count > num_boxes) count = num_boxes;
+    float x, y, w, h;
+    int id;
+
+    for (i = 0; i < count; ++i) {
+        x = boxes[i].x;
+        y = boxes[i].y;
+        w = boxes[i].w;
+        h = boxes[i].h;
+        id = boxes[i].id;
+
+        // not detect small objects
+        //if ((w < 0.001F || h < 0.001F)) continue;
+        // if truth (box for object) is smaller than 1x1 pix
+        char buff[256];
+        if (id >= classes) {
+            printf("\n Wrong annotation: class_id = %d. But class_id should be [from 0 to %d] \n", id, classes);
+            sprintf(buff, "echo %s \"Wrong annotation: class_id = %d. But class_id should be [from 0 to %d]\" >> bad_label.list", labelpath, id, classes);
+            system(buff);
+            getchar();
+            continue;
+        }
+        if ((w < lowest_w || h < lowest_h)) {
+            //sprintf(buff, "echo %s \"Very small object: w < lowest_w OR h < lowest_h\" >> bad_label.list", labelpath);
+            //system(buff);
+            continue;
+        }
+        if (x == 999999 || y == 999999) {
+            printf("\n Wrong annotation: x = 0, y = 0 \n");
+            sprintf(buff, "echo %s \"Wrong annotation: x = 0 or y = 0\" >> bad_label.list", labelpath);
+            system(buff);
+            continue;
+        }
+        if (x <= 0 || x > 1 || y <= 0 || y > 1) {
+            printf("\n Wrong annotation: x = %f, y = %f \n", x, y);
+            sprintf(buff, "echo %s \"Wrong annotation: x = %f, y = %f\" >> bad_label.list", labelpath, x, y);
+            system(buff);
+            continue;
+        }
+        if (w > 1) {
+            printf("\n Wrong annotation: w = %f \n", w);
+            sprintf(buff, "echo %s \"Wrong annotation: w = %f\" >> bad_label.list", labelpath, w);
+            system(buff);
+            w = 1;
+        }
+        if (h > 1) {
+            printf("\n Wrong annotation: h = %f \n", h);
+            sprintf(buff, "echo %s \"Wrong annotation: h = %f\" >> bad_label.list", labelpath, h);
+            system(buff);
+            h = 1;
+        }
+        if (x == 0) x += lowest_w;
+        if (y == 0) y += lowest_h;
+
+        truth[i*5+0] = x;
+        truth[i*5+1] = y;
+        truth[i*5+2] = w;
+        truth[i*5+3] = h;
+        truth[i*5+4] = id;
+    }
+    free(boxes);
+}
 #define NUMCHARS 37
 
 void print_letters(float *pred, int n)
@@ -823,7 +973,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 }
 #else    // OPENCV
 */
-data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float hue, float saturation, float exposure, int small_object)
+data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float angle, float hue, float saturation, float exposure, int small_object)
 {
     c = c ? c : 3;
     char **random_paths = get_random_paths(paths, n, m);
@@ -840,40 +990,109 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         const char *filename = random_paths[i];
         image orig = load_image(filename, 0, 0, c);
 
-        int oh = orig.h;
-        int ow = orig.w;
-
-        float pleft = rand_uniform_strong(-jitter, jitter);
-        float ptop = rand_uniform_strong(-jitter, jitter);
-
-        image boxed = letterbox_image(orig, w, h);
-        image cropped = crop_image(boxed, pleft*w, ptop*h, w, h);
-
-        int flip = use_flip ? random_gen()%2 : 0;
-        if (flip) flip_image(cropped);
-
-        random_distort_image(cropped, hue, saturation, exposure);
-        d.X.vals[i] = cropped.data;
-
-        int new_w;
-        int new_h;
-
-        resize_saving_aspect_ratio(&new_w, &new_h, ow, oh, w, h);
-
-        float sx = (float) new_w / w;
-        float sy = (float) new_h / h;
-        float dx = pleft + (float)(w - new_w) / 2.f / w;
-        float dy = ptop + (float)(h - new_h) / 2.f / h;
-
-        fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, sx, sy, small_object, w, h);
+        data_augmentation(filename, orig,  boxes, classes, d.X.vals[i], d.y.vals[i], w, h, use_flip, jitter, angle, hue, saturation, exposure, small_object);
 
         free_image(orig);
-        free_image(boxed);
     }
     free(random_paths);
     return d;
 }
 //#endif    // OPENCV
+
+void mul_matrix_2x2(float* m1, float* m2, float* res)
+{
+
+    for(int i = 0; i < 2; i++)
+        for(int j = 0; j < 2; j++) {
+            res[i*2 + j] = 0;
+            for(int k = 0; k < 2; k++) {
+                res[i*2 + j] += m1[i*2 + k] * m2[k*2 + j];
+            }
+        }
+}
+
+void inverse_matrix_2x2(float* A, float* iA)
+{
+    float det_A = A[0]*A[3] - A[1]*A[2];
+    iA[0] =  A[3] / det_A;
+    iA[1] = -A[1] / det_A;
+    iA[2] = -A[2] / det_A;
+    iA[3] =  A[0] / det_A;
+}
+
+void make_matrix_transform(float scale, float rad, int use_flip, float* T)
+{
+    float A[4]; //T- transform matrix, v - shift vector. new coord: y = T * x + v => T^(-1) * (y - v) = x
+    // C - scale matrix, R - rotate matrix, F - matrix mirrow. T = C*R*F
+    //scale
+    float C[4] = {scale, 0, 0, scale};
+
+    //rotate
+    float cs = cos(rad);
+    float sn = sin(rad);
+    float R[4] = {cs, sn, -sn, cs};
+
+    //flip
+    int flip_x = use_flip ? random_gen()%2 : 0;
+    int flip_y = use_flip ? random_gen()%2 : 0;
+    float F[4] = {1, 0, 0, 1};
+    if (flip_x) F[0]= -1;
+    if (flip_y) F[3]= -1;
+
+    mul_matrix_2x2(C, R, T);
+    mul_matrix_2x2(T, F, A);
+}
+
+void data_augmentation(const char *filename,
+                       image im,
+                       int boxes, int classes,
+                       float* X, float* y,
+                       int w, int h,
+                       int use_flip,
+                       float jitter,
+                       float angle,
+                       float hue,
+                       float saturation,
+                       float exposure,
+                       int small_object)
+{
+    int oh = im.h;
+    int ow = im.w;
+
+    float dx = rand_uniform_strong(-jitter, jitter);
+    float dy = rand_uniform_strong(-jitter, jitter);
+    float rad = rand_uniform(-angle, angle) * TWO_PI / 360.;
+
+    //scale
+    int new_w;
+    int new_h;
+    if (((float)w / im.w) < ((float)h / im.h)) {
+        new_w = w;
+        new_h = (im.h * w) / im.w;
+    }
+    else {
+        new_h = h;
+        new_w = (im.w * h) / im.h;
+    }
+    float scale = (float)new_w / im.w;
+
+    //T- transform matrix, v - shift vector. new coord: y = T * x + v => T^(-1) * (y - v) = x
+    // C - scale matrix, R - rotate matrix, F - matrix mirrow. T = C*R*F
+    float T[4], iT[4], v[2];
+    make_matrix_transform(scale, rad, use_flip, T);
+    inverse_matrix_2x2(T, iT);
+
+    v[0] = (w - new_w) / 2 + dx * w;
+    v[1] = (h - new_h) / 2 + dy * h;
+
+    image im_net = image_transform(im, w, h, iT, v, hue, saturation, exposure);
+    X = im_net.data;
+
+    v[0] /= w;
+    v[0] /= h;
+
+    fill_truth_detection(filename, boxes, y, classes, T, v, small_object, w, h);
+}
 
 void *load_thread(void *ptr)
 {
@@ -895,7 +1114,7 @@ void *load_thread(void *ptr)
     } else if (a.type == REGION_DATA){
         *a.d = load_data_region(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
     } else if (a.type == DETECTION_DATA){
-        *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.c, a.num_boxes, a.classes, a.flip, a.jitter, a.hue, a.saturation, a.exposure, a.small_object);
+        *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.c, a.num_boxes, a.classes, a.flip, a.jitter, a.angle, a.hue, a.saturation, a.exposure, a.small_object);
     } else if (a.type == SWAG_DATA){
         *a.d = load_data_swag(a.paths, a.n, a.classes, a.jitter);
     } else if (a.type == COMPARE_DATA){

@@ -43,15 +43,9 @@ static inline float get_pixel(image m, int x, int y, int c)
     assert(x < m.w && y < m.h && c < m.c);
     return m.data[c*m.h*m.w + y*m.w + x];
 }
-static float get_pixel_extend(image m, int x, int y, int c)
+static inline float get_pixel_extend(image m, int x, int y, int c)
 {
     if (x < 0 || x >= m.w || y < 0 || y >= m.h) return 0;
-    /*
-    if(x < 0) x = 0;
-    if(x >= m.w) x = m.w-1;
-    if(y < 0) y = 0;
-    if(y >= m.h) y = m.h-1;
-    */
     if (c < 0 || c >= m.c) return 0;
     return get_pixel(m, x, y, c);
 }
@@ -1244,12 +1238,14 @@ image rotate_image(image im, float rad)
     int x, y, c;
     float cx = im.w/2.;
     float cy = im.h/2.;
+    float cos_rad = cos(rad);
+    float sin_rad = sin(rad);
     image rot = make_image(im.w, im.h, im.c);
     for(c = 0; c < im.c; ++c){
         for(y = 0; y < im.h; ++y){
             for(x = 0; x < im.w; ++x){
-                float rx = cos(rad)*(x-cx) - sin(rad)*(y-cy) + cx;
-                float ry = sin(rad)*(x-cx) + cos(rad)*(y-cy) + cy;
+                float rx = cos_rad*(x-cx) - sin_rad*(y-cy) + cx;
+                float ry = sin_rad*(x-cx) + cos_rad*(y-cy) + cy;
                 float val = bilinear_interpolate(im, rx, ry, c);
                 set_pixel(rot, x, y, c, val);
             }
@@ -1380,6 +1376,7 @@ void resize_saving_aspect_ratio(int* new_w, int* new_h, int src_w, int src_h, in
     }
 }
 
+
 void letterbox_image_into(image im, int w, int h, image boxed)
 {
     int new_w;
@@ -1464,6 +1461,33 @@ image random_augment_image(image im, float angle, float aspect, int low, int hig
     image crop = rotate_crop_image(im, rad, scale, size, size, dx, dy, aspect);
 
     return crop;
+}
+
+image image_transform(image im, int w, int h, float* T, float* v, float hue, float saturation, float exposure)
+{
+    image im_net = make_image(w, h, im.c);
+
+    float y[2], x[2];
+    float cx_net = w / 2.f;
+    float cy_net = h / 2.f;
+    float cx_im = im.w / 2.f;
+    float cy_im = im.h / 2.f;
+
+    for(int j = 0; j < h; j++) {
+        for(int i = 0; i < w; i++) {
+            y[0] = i - v[0] - cx_net;
+            y[1] = j - v[1] - cy_net;
+            x[0] = T[0] * y[0] + T[1] * y[1] + cx_im;
+            x[1] = T[2] * y[0] + T[2] * y[1] + cy_im;
+
+            for(int c = 0; c < im.c; ++c) {
+                float val = bilinear_interpolate(im, x[0], x[1], c);
+                set_pixel(im_net, i, j, c, val);
+            }
+        }
+    }
+
+    random_distort_image(im_net, hue, saturation, exposure);
 }
 
 float three_way_max(float a, float b, float c)
