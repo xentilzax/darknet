@@ -2,7 +2,6 @@ GPU=0
 CUDNN=0
 CUDNN_HALF=0
 OPENCV=1
-OPENCV3=0
 AVX=1
 OPENMP=1
 LIBSO=0
@@ -27,7 +26,7 @@ OS := $(shell uname)
 # GTX 1080, GTX 1070, GTX 1060, GTX 1050, GTX 1030, Titan Xp, Tesla P40, Tesla P4
 # ARCH= -gencode arch=compute_61,code=sm_61 -gencode arch=compute_61,code=compute_61
 
-# GP100/Tesla P100 Â– DGX-1
+# GP100/Tesla P100 – DGX-1
 # ARCH= -gencode arch=compute_60,code=sm_60
 
 # For Jetson TX1, Tegra X1, DRIVE CX, DRIVE PX - uncomment:
@@ -65,23 +64,11 @@ endif
 CFLAGS+=$(OPTS)
 
 ifeq ($(OPENCV), 1) 
-ifeq ($(OPENCV3), 1) 
-LDFLAGS += \
-    -l"opencv_video" \
-    -l"opencv_highgui" \
-    -l"opencv_imgproc" \
-    -l"opencv_imgcodecs" \
-    -l"opencv_core"
-else
-LDFLAGS += \
-    -l"opencv_video" \
-    -l"opencv_highgui" \
-    -l"opencv_imgproc" \
-    -l"opencv_core"
+COMMON+= -DOPENCV
+CFLAGS+= -DOPENCV
+LDFLAGS+= `pkg-config --libs opencv` 
+COMMON+= `pkg-config --cflags opencv` 
 endif
-endif
-
-
 
 ifeq ($(OPENMP), 1)
 CFLAGS+= -fopenmp
@@ -134,10 +121,6 @@ $(LIBNAMESO): $(OBJS) src/yolo_v2_class.hpp src/yolo_v2_class.cpp
 	
 $(APPNAMESO): $(LIBNAMESO) src/yolo_v2_class.hpp src/yolo_console_dll.cpp
 	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
-endif
-
-ifeq ($(LIBSO), 0) 
-LDFLAGS += -no-pie
 endif
 
 $(EXEC): $(OBJS)
