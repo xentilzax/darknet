@@ -167,7 +167,7 @@ void pm(int M, int N, float *A)
     printf("\n");
 }
 
-void find_replace(char *str, char *orig, char *rep, char *output)
+void find_replace(const char *str, char *orig, char *rep, char *output)
 {
     char *buffer = calloc(8192, sizeof(char));
     char *p;
@@ -205,7 +205,7 @@ void find_replace_extension(char *str, char *orig, char *rep, char *output)
     free(buffer);
 }
 
-void replace_image_to_label(char *input_path, char *output_path) {
+void replace_image_to_label(const char *input_path, char *output_path) {
     //find_replace(input_path, "/images/", "/labels/", output_path);    // COCO
     find_replace(input_path, "/images/train2014/", "/labels/train2014/", output_path);    // COCO
     find_replace(output_path, "/images/val2014/", "/labels/val2014/", output_path);        // COCO

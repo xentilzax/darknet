@@ -223,15 +223,18 @@ void correct_boxes(box_label *boxes, int n, float dx, float dy, float sx, float 
     }
 }
 
-void transform_point(float* y, float* x, float* T, float* v)
+void transform_point(float* b, const float* a, const float* T, const float* v)
 {
-    x[0] -= 0.5;
-    x[1] -= 0.5;
-    y[0] = T[0] * x[0] + T[1] * x[1] + 0.5 + v[0];
-    y[1] = T[2] * x[0] + T[3] * x[1] + 0.5 + v[1];
+    float ax = a[0];
+    float ay = a[1];
+    b[0] = T[0] * ax + T[1] * ay + v[0];
+    b[1] = T[2] * ax + T[3] * ay + v[1];
 }
 
-void transform_boxes(box_label *boxes, int n, float* T, float* v)
+void transform_boxes(box_label *boxes, int n,
+                     const float* T, const float* v,
+                     int im_w, int im_h,
+                     int net_w, int net_h)
 {
     int i;
     for(i = 0; i < n; ++i){
@@ -242,37 +245,66 @@ void transform_boxes(box_label *boxes, int n, float* T, float* v)
             boxes[i].h = 999999;
             continue;
         }
-        //y = T*x + v
-        float p[2*4], x[2];
 
-        x[0] = boxes[i].left; x[1] = boxes[i].top;
-        transform_point(p+0, x, T, v);
+        boxes[i].left *= im_w;
+        boxes[i].right *= im_w;
+        boxes[i].top *= im_h;
+        boxes[i].bottom *= im_h;
 
-        x[0] = boxes[i].right; x[1] = boxes[i].top;
-        transform_point(p+2, x, T, v);
+        boxes[i].left -= im_w / 2;
+        boxes[i].right -= im_w / 2;
+        boxes[i].top -= im_h / 2;
+        boxes[i].bottom -= im_h / 2;
 
-        x[0] = boxes[i].right, x[1] = boxes[i].bottom;
-        transform_point(p+4, x, T, v);
+        //y = T*(x - im_center) + v + net_center
+        float p[2*4];
+        float x[2], vc[2];
 
-        x[0] = boxes[i].left; x[1] = boxes[i].bottom;
-        transform_point(p+6, x, T, v);
+        vc[0] = v[0] + net_w / 2;
+        vc[1] = v[1] + net_h / 2;
 
-        float left = p[0];
-        float right = p[0];
-        float top = p[1];
-        float bottom = p[1];
+        x[0] = boxes[i].left;
+        x[1] = boxes[i].top;
+        transform_point(p+0, x, T, vc);
 
-        for(int i = 0; i < 4; i++) {
-            if( p[i*2 + 0] < left ) left = p[i*2 + 0];
-            if( p[i*2 + 0] > right ) right = p[i*2 + 0];
-            if( p[i*2 + 1] < top ) top = p[i*2 + 1];
-            if( p[i*2 + 1] > bottom) bottom = p[i*2 + 1];
+        x[0] = boxes[i].right;
+        x[1] = boxes[i].top;
+        transform_point(p+2, x, T, vc);
+
+        x[0] = boxes[i].right;
+        x[1] = boxes[i].bottom;
+        transform_point(p+4, x, T, vc);
+
+        x[0] = boxes[i].left;
+        x[1] = boxes[i].bottom;
+        transform_point(p+6, x, T, vc);
+
+        float s[2*8];
+        for(int j = 0; j < 4; j++) {
+            int k = j + 1;
+            if(k == 3) k = 0;
+            s[j*4 + 0] = (p[j*2 + 0] + 3 * p[k*2 + 0]) / 4;
+            s[j*4 + 1] = (p[j*2 + 1] + 3 * p[k*2 + 1]) / 4;
+            s[j*4 + 2] = (3 * p[j*2 + 0] + p[k*2 + 0]) / 4;
+            s[j*4 + 3] = (3 * p[j*2 + 1] + p[k*2 + 1]) / 4;
         }
 
-        boxes[i].left   = left;
-        boxes[i].right  = right;
-        boxes[i].top    = top;
-        boxes[i].bottom = bottom;
+        float left = s[0];
+        float right = s[0];
+        float top = s[1];
+        float bottom = s[1];
+
+        for(int j = 0; j < 8; j++) {
+            if( s[j*2 + 0] < left ) left = s[j*2 + 0];
+            if( s[j*2 + 0] > right ) right = s[j*2 + 0];
+            if( s[j*2 + 1] < top ) top = s[j*2 + 1];
+            if( s[j*2 + 1] > bottom) bottom = s[j*2 + 1];
+        }
+
+        boxes[i].left   = left / net_w;
+        boxes[i].right  = right / net_w;
+        boxes[i].top    = top / net_h;
+        boxes[i].bottom = bottom / net_h;
 
 
         boxes[i].left =  constrain(0, 1, boxes[i].left);
@@ -447,7 +479,15 @@ void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, 
     free(boxes);
 }
 */
-void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, float* T, float* v, int small_object, int net_w, int net_h)
+void fill_truth_detection(const char *path,
+                          int num_boxes,
+                          float *truth,
+                          int classes,
+                          const float* T,
+                          const float* v,
+                          int small_object,
+                          int net_w, int net_h,
+                          int im_w, int im_h)
 {
     char labelpath[4096];
     replace_image_to_label(path, labelpath);
@@ -459,7 +499,7 @@ void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, 
     float lowest_h = 1.F / net_h;
 
     randomize_boxes(boxes, count);
-    transform_boxes(boxes, count, T, v);
+    transform_boxes(boxes, count, T, v, im_w, im_h, net_w, net_h);
 
     if (small_object == 1) {
         for (i = 0; i < count; ++i) {
@@ -999,7 +1039,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 }
 //#endif    // OPENCV
 
-void mul_matrix_2x2(float* m1, float* m2, float* res)
+void mul_matrix_2x2(const float* m1, const float* m2, float* res)
 {
 
     for(int i = 0; i < 2; i++)
@@ -1011,7 +1051,11 @@ void mul_matrix_2x2(float* m1, float* m2, float* res)
         }
 }
 
-void inverse_matrix_2x2(float* A, float* iA)
+/*
+ *          | a  b |                           | d -b |
+ * det(A) = | c  d | = ad - cb   det(A^(-1)) = |-c  a | = ad - cb
+ */
+void inverse_matrix_2x2(const float* A, float* iA)
 {
     float det_A = A[0]*A[3] - A[1]*A[2];
     iA[0] =  A[3] / det_A;
@@ -1039,8 +1083,8 @@ void make_matrix_transform(float scale, float rad, int use_flip, float* T)
     if (flip_x) F[0]= -1;
     if (flip_y) F[3]= -1;
 
-    mul_matrix_2x2(C, R, T);
-    mul_matrix_2x2(T, F, A);
+    mul_matrix_2x2(C, R, A);
+    mul_matrix_2x2(A, F, T);
 }
 
 void data_augmentation(const char *filename,
@@ -1056,16 +1100,13 @@ void data_augmentation(const char *filename,
                        float exposure,
                        int small_object)
 {
-    int oh = im.h;
-    int ow = im.w;
-
     float dx = rand_uniform_strong(-jitter, jitter);
     float dy = rand_uniform_strong(-jitter, jitter);
     float rad = rand_uniform(-angle, angle) * TWO_PI / 360.;
 
     //scale
-    int new_w;
-    int new_h;
+    float new_w;
+    float new_h;
     if (((float)w / im.w) < ((float)h / im.h)) {
         new_w = w;
         new_h = (im.h * w) / im.w;
@@ -1074,7 +1115,7 @@ void data_augmentation(const char *filename,
         new_h = h;
         new_w = (im.w * h) / im.h;
     }
-    float scale = (float)new_w / im.w;
+    float scale = new_w / im.w;
 
     //T- transform matrix, v - shift vector. new coord: y = T * x + v => T^(-1) * (y - v) = x
     // C - scale matrix, R - rotate matrix, F - matrix mirrow. T = C*R*F
@@ -1082,16 +1123,37 @@ void data_augmentation(const char *filename,
     make_matrix_transform(scale, rad, use_flip, T);
     inverse_matrix_2x2(T, iT);
 
-    v[0] = (w - new_w) / 2 + dx * w;
-    v[1] = (h - new_h) / 2 + dy * h;
+    v[0] = dx * w;
+    v[1] = dy * h;
 
     image im_net = image_transform(im, w, h, iT, v, hue, saturation, exposure);
     X = im_net.data;
 
-    v[0] /= w;
-    v[0] /= h;
+    fill_truth_detection(filename, boxes, y, classes, T, v, small_object, w, h, im.w, im.h);
 
-    fill_truth_detection(filename, boxes, y, classes, T, v, small_object, w, h);
+    //output image for debug
+//    {
+//        char labelpath[4096];
+//        replace_image_to_label(filename, labelpath);
+//        int count = 0;
+//        box_label *bboxes = read_boxes(labelpath, &count);
+//        if (count > boxes) count = boxes;
+
+
+//        for(int i = 0; i < count; i++) {
+//            box bbox;
+//            bbox.x = y[i*5+0];
+//            bbox.y = y[i*5+1];
+//            bbox.w = y[i*5+2];
+//            bbox.h = y[i*5+3];
+
+//            draw_bbox(im_net, bbox, 2, 1, 1, 0);
+//        }
+//        free(bboxes);
+
+//        save_image(im_net, "net");
+//        exit(0);
+//    }
 }
 
 void *load_thread(void *ptr)

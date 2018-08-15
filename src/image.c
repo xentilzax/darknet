@@ -1463,7 +1463,7 @@ image random_augment_image(image im, float angle, float aspect, int low, int hig
     return crop;
 }
 
-image image_transform(image im, int w, int h, float* T, float* v, float hue, float saturation, float exposure)
+image image_transform(image im, int w, int h, const float* T, const float* v, float hue, float saturation, float exposure)
 {
     image im_net = make_image(w, h, im.c);
 
@@ -1478,7 +1478,7 @@ image image_transform(image im, int w, int h, float* T, float* v, float hue, flo
             y[0] = i - v[0] - cx_net;
             y[1] = j - v[1] - cy_net;
             x[0] = T[0] * y[0] + T[1] * y[1] + cx_im;
-            x[1] = T[2] * y[0] + T[2] * y[1] + cy_im;
+            x[1] = T[2] * y[0] + T[3] * y[1] + cy_im;
 
             for(int c = 0; c < im.c; ++c) {
                 float val = bilinear_interpolate(im, x[0], x[1], c);
@@ -1488,6 +1488,7 @@ image image_transform(image im, int w, int h, float* T, float* v, float hue, flo
     }
 
     random_distort_image(im_net, hue, saturation, exposure);
+    return im_net;
 }
 
 float three_way_max(float a, float b, float c)
