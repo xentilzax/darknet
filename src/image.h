@@ -29,7 +29,7 @@ void scale_image(image m, float s);
 image crop_image(image im, int dx, int dy, int w, int h);
 image random_crop_image(image im, int w, int h);
 image random_augment_image(image im, float angle, float aspect, int low, int high, int size);
-image image_transform(image im, int w, int h, const float* T, const float* v, float hue, float saturation, float exposure);
+image image_transform(const image im, int w, int h, const float* T, const float* v, float hue, float saturation, float exposure);
 void random_distort_image(image im, float hue, float saturation, float exposure);
 YOLODLL_API image resize_image(image im, int w, int h);
 void fill_image(image m, float s);
@@ -83,7 +83,7 @@ image **load_alphabet();
 //float get_pixel_extend(image m, int x, int y, int c);
 //void set_pixel(image m, int x, int y, int c, float val);
 //void add_pixel(image m, int x, int y, int c, float val);
-float bilinear_interpolate(image im, float x, float y, int c);
+float bilinear_interpolate(const image im, float x, float y, int c);
 
 image get_image_layer(image m, int l);
 

@@ -38,12 +38,12 @@ float get_color(int c, int x, int max)
     return r;
 }
 
-static inline float get_pixel(image m, int x, int y, int c)
+static inline float get_pixel(const image m, int x, int y, int c)
 {
     assert(x < m.w && y < m.h && c < m.c);
     return m.data[c*m.h*m.w + y*m.w + x];
 }
-static inline float get_pixel_extend(image m, int x, int y, int c)
+static inline float get_pixel_extend(const image m, int x, int y, int c)
 {
     if (x < 0 || x >= m.w || y < 0 || y >= m.h) return 0;
     if (c < 0 || c >= m.c) return 0;
@@ -1463,7 +1463,7 @@ image random_augment_image(image im, float angle, float aspect, int low, int hig
     return crop;
 }
 
-image image_transform(image im, int w, int h, const float* T, const float* v, float hue, float saturation, float exposure)
+image image_transform(const image im, int w, int h, const float* T, const float* v, float hue, float saturation, float exposure)
 {
     image im_net = make_image(w, h, im.c);
 
@@ -1726,7 +1726,7 @@ void saturate_exposure_image(image im, float sat, float exposure)
     constrain_image(im);
 }
 
-float bilinear_interpolate(image im, float x, float y, int c)
+float bilinear_interpolate(const image im, float x, float y, int c)
 {
     int ix = (int) floorf(x);
     int iy = (int) floorf(y);
