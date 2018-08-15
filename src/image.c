@@ -1376,7 +1376,6 @@ void resize_saving_aspect_ratio(int* new_w, int* new_h, int src_w, int src_h, in
     }
 }
 
-
 void letterbox_image_into(image im, int w, int h, image boxed)
 {
     int new_w;
