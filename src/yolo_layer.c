@@ -4,6 +4,7 @@
 #include "box.h"
 #include "cuda.h"
 #include "utils.h"
+#include "image.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -292,14 +293,7 @@ void correct_yolo_boxes(detection *dets, int n, int w, int h, int netw, int neth
     int new_w=0;
     int new_h=0;
     if (letter) {
-        if (((float)netw / w) < ((float)neth / h)) {
-            new_w = netw;
-            new_h = (h * netw) / w;
-        }
-        else {
-            new_h = neth;
-            new_w = (w * neth) / h;
-        }
+        resize_saving_aspect_ratio(&new_w, &new_h, w, h, netw, neth);
     }
     else {
         new_w = netw;
