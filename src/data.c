@@ -923,7 +923,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         const char *filename = random_paths[i];
         image orig = load_image(filename, 0, 0, c);
 
-        data_augmentation(filename, orig,  boxes, classes, d.X.vals[i], d.y.vals[i], w, h, use_flip, jitter, angle, hue, saturation, exposure, small_object);
+        data_augmentation(filename, orig,  boxes, classes, d.X.vals + i, d.y.vals[i], w, h, use_flip, jitter, angle, hue, saturation, exposure, small_object);
 
         free_image(orig);
     }
@@ -982,7 +982,7 @@ void make_matrix_transform(float scale, float rad, int use_flip, float* T)
 void data_augmentation(const char *filename,
                        const image im,
                        int boxes, int classes,
-                       float* X, float* y,
+                       float** X, float* y,
                        int w, int h,
                        int use_flip,
                        float jitter,
@@ -1019,7 +1019,7 @@ void data_augmentation(const char *filename,
     v[1] = dy * h;
 
     image im_net = image_transform(im, w, h, iT, v, hue, saturation, exposure);
-    X = im_net.data;
+    *X = im_net.data;
 
     fill_truth_detection(filename, boxes, y, classes, T, v, small_object, w, h, im.w, im.h);
 
