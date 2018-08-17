@@ -40,9 +40,9 @@ char **get_random_paths_indexes(char **paths, int n, int m, int *indexes)
 }
 */
 
-char **get_random_paths(char **paths, int n, int m)
+char **get_random_paths(const char **paths, int n, int m)
 {
-    char **random_paths = calloc(n, sizeof(char*));
+    const char **random_paths = calloc(n, sizeof(char*));
     int i;
     pthread_mutex_lock(&mutex);
     //printf("n = %d \n", n);
@@ -906,10 +906,10 @@ data load_data_swag(char **paths, int n, int classes, float jitter)
     return d;
 }
 
-data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float angle, float hue, float saturation, float exposure, int small_object)
+data load_data_detection(int n, const char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float angle, float hue, float saturation, float exposure, int small_object)
 {
     c = c ? c : 3;
-    char **random_paths = get_random_paths(paths, n, m);
+    const char **random_paths = get_random_paths(paths, n, m);
     int i;
     data d = { 0 };
     d.shallow = 0;
