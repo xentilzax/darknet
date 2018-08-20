@@ -970,10 +970,11 @@ void make_matrix_transform(float scale, float rad, int use_flip, float* T)
 
     //flip
     int flip_x = use_flip ? random_gen()%2 : 0;
-    int flip_y = use_flip ? random_gen()%2 : 0;
+//    int flip_y = use_flip ? random_gen()%2 : 0;
+
     float F[4] = {1, 0, 0, 1};
     if (flip_x) F[0]= -1;
-    if (flip_y) F[3]= -1;
+  //  if (flip_y) F[3]= -1;
 
     mul_matrix_2x2(C, R, A);
     mul_matrix_2x2(A, F, T);
