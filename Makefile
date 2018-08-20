@@ -77,6 +77,7 @@ COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
 ifeq ($(OPENCV3), 1) 
 LDFLAGS += \
+    -l"opencv_videoio" \
     -l"opencv_video" \
     -l"opencv_highgui" \
     -l"opencv_imgproc" \
