@@ -2,6 +2,7 @@ GPU=0
 CUDNN=0
 CUDNN_HALF=0
 OPENCV=1
+OPENCV3=0
 AVX=1
 OPENMP=1
 LIBSO=0
@@ -10,7 +11,7 @@ LIBSO=0
 # set CUDNN_HALF=1 to further speedup 3 x times (Mixed-precision using Tensor Cores) on GPU Tesla V100, Titan V, DGX-2
 # set AVX=1 and OPENMP=1 to speedup on CPU (if error occurs then set AVX=0)
 
-DEBUG=1
+DEBUG=0
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
       -gencode arch=compute_35,code=sm_35 \
@@ -64,12 +65,32 @@ endif
 
 CFLAGS+=$(OPTS)
 
+#ifeq ($(OPENCV), 1) 
+#COMMON+= -DOPENCV
+#CFLAGS+= -DOPENCV
+#LDFLAGS+= `pkg-config --libs opencv` 
+#COMMON+= `pkg-config --cflags opencv` 
+#endif
+
 ifeq ($(OPENCV), 1) 
 COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
-LDFLAGS+= `pkg-config --libs opencv` 
-COMMON+= `pkg-config --cflags opencv` 
+ifeq ($(OPENCV3), 1) 
+LDFLAGS += \
+    -l"opencv_video" \
+    -l"opencv_highgui" \
+    -l"opencv_imgproc" \
+    -l"opencv_imgcodecs" \
+    -l"opencv_core"
+else
+LDFLAGS += \
+    -l"opencv_video" \
+    -l"opencv_highgui" \
+    -l"opencv_imgproc" \
+    -l"opencv_core"
 endif
+endif
+
 
 ifeq ($(OPENMP), 1)
 CFLAGS+= -fopenmp
