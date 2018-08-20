@@ -23,6 +23,8 @@
 #include "http_stream.h"
 #endif
 
+#define FILL_VALUE 0.5
+
 int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
@@ -45,8 +47,8 @@ static inline float get_pixel(const image m, int x, int y, int c)
 }
 static inline float get_pixel_extend(const image m, int x, int y, int c)
 {
-    if (x < 0 || x >= m.w || y < 0 || y >= m.h) return 0;
-    if (c < 0 || c >= m.c) return 0;
+    if (x < 0 || x >= m.w || y < 0 || y >= m.h) return FILL_VALUE;
+    if (c < 0 || c >= m.c) return FILL_VALUE;
     return get_pixel(m, x, y, c);
 }
 static void set_pixel(image m, int x, int y, int c, float val)
@@ -1395,7 +1397,7 @@ image letterbox_image(image im, int w, int h)
     resize_saving_aspect_ratio(&new_w, &new_h, im.w, im.h, w, h);
     image resized = resize_image(im, new_w, new_h);
     image boxed = make_image(w, h, im.c);
-    fill_image(boxed, .5);
+    fill_image(boxed, FILL_VALUE);
     embed_image(resized, boxed, (w - new_w) / 2, (h - new_h) / 2);
     free_image(resized);
     return boxed;
@@ -1743,45 +1745,45 @@ float bilinear_interpolate(const image im, float x, float y, int c)
 image resize_image(image im, int w, int h)
 {
     image resized = make_image(w, h, im.c);
-    int r, c, k;
-    float w_scale = (float)(im.w - 1) / (w -1);
-    float h_scale = (float)(im.h - 1) / (h -1);
+    int y, x, color;
+    float w_scale = (float)(im.w) / (w);
+    float h_scale = (float)(im.h) / (h);
     float val1, val2, val;
 
-    for(k = 0; k < im.c; ++k){
-        for(c = 0; c < w-1 ; ++c){
-            for(r = 0; r < h-1; ++r){
-                float sx = c * w_scale;
-                float sy = r * h_scale;
+    for(color = 0; color < im.c; ++color){
+        for(x = 0; x < w-1 ; ++x){
+            for(y = 0; y < h-1; ++y){
+                float sx = x * w_scale;
+                float sy = y * h_scale;
                 int ix = (int) sx;
                 int iy = (int) sy;
                 float dx = sx - ix;
                 float dy = sy - iy;
 
-                val1 = (1 - dx) * get_pixel(im, ix, iy, k) + dx * get_pixel(im, ix+1, iy, k);
-                val2 = (1 - dx) * get_pixel(im, ix, iy+1, k) + dx * get_pixel(im, ix+1, iy+1, k);
-                val  = (1 - dy) * val1 + dx * val2;
-                set_pixel(resized, c, r, k, val);
+                val1 = (1 - dx) * get_pixel_extend(im, ix, iy, color) + dx * get_pixel_extend(im, ix+1, iy, color);
+                val2 = (1 - dx) * get_pixel_extend(im, ix, iy+1, color) + dx * get_pixel_extend(im, ix+1, iy+1, color);
+                val  = (1 - dy) * val1 + dy * val2;
+                set_pixel(resized, x, y, color, val);
             }
         }
-        for(c = 0; c < w-1 ; ++c){
-            float sx = c * w_scale;
+        for(x = 0; x < w-1 ; ++x){
+            float sx = x * w_scale;
             int ix = (int) sx;
             float dx = sx - ix;
 
-            val = (1 - dx) * get_pixel(im, ix, im.h-1, k) + dx * get_pixel(im, ix+1, im.h-1, k);
-            set_pixel(resized, c, h-1, k, val);
+            val = (1 - dx) * get_pixel(im, ix, im.h-1, color) + dx * get_pixel(im, ix+1, im.h-1, color);
+            set_pixel(resized, x, h-1, color, val);
         }
-        for(r = 0; r < h-1; ++r){
-            float sy = r * h_scale;
+        for(y = 0; y < h-1; ++y){
+            float sy = y * h_scale;
             int iy = (int) sy;
             float dy = sy - iy;
 
-            val = (1 - dy) * get_pixel(im, im.w-1, iy, k) + dy * get_pixel(im, im.w-1, iy+1, k);
-            set_pixel(resized, w-1, r, k, val);
+            val = (1 - dy) * get_pixel(im, im.w-1, iy, color) + dy * get_pixel(im, im.w-1, iy+1, color);
+            set_pixel(resized, w-1, y, color, val);
         }
-        val = get_pixel(im, im.w-1, im.h-1, k);
-        set_pixel(resized, w-1, h-1, k, val);
+        val = get_pixel(im, im.w-1, im.h-1, color);
+        set_pixel(resized, w-1, h-1, color, val);
     }
 
     return resized;

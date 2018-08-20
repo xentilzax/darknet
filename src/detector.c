@@ -509,16 +509,24 @@ void validate_detector_recall(char *datacfg, char *cfgfile, char *weightfile)
     int correct = 0;
     int proposals = 0;
     float avg_iou = 0;
+    int letterbox = 1;
 
     for (i = 0; i < m; ++i) {
         char *path = paths[i];
         image orig = load_image(path, 0, 0, net.c);
-        image sized = resize_image(orig, net.w, net.h);
+        image sized;
+        if(letterbox) {
+            sized = letterbox_image(orig, net.w, net.h);
+        } else {
+            sized = resize_image(orig, net.w, net.h);
+        }
+
         char *id = basecfg(path);
         network_predict(net, sized.data);
         int nboxes = 0;
-        int letterbox = 1;
-        detection *dets = get_network_boxes(&net, sized.w, sized.h, thresh, .5, 0, 1, &nboxes, letterbox);
+
+
+        detection *dets = get_network_boxes(&net, orig.w, orig.h, thresh, .5, 0, 1, &nboxes, letterbox);
         if (nms) do_nms_obj(dets, nboxes, 1, nms);
 
         char labelpath[4096];
