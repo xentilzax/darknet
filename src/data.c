@@ -250,10 +250,10 @@ void transform_boxes(box_label *boxes, int n,
         boxes[i].top *= im_h;
         boxes[i].bottom *= im_h;
 
-        boxes[i].left -= im_w / 2;
-        boxes[i].right -= im_w / 2;
-        boxes[i].top -= im_h / 2;
-        boxes[i].bottom -= im_h / 2;
+        boxes[i].left -= im_w / 2.f;
+        boxes[i].right -= im_w / 2.f;
+        boxes[i].top -= im_h / 2.f;
+        boxes[i].bottom -= im_h / 2.f;
 
         //y = T*(x - im_center) + v + net_center
         float p[2*4];
@@ -279,9 +279,10 @@ void transform_boxes(box_label *boxes, int n,
         transform_point(p+6, x, T, vc);
 
         float s[2*8];
+        int k;
         for(int j = 0; j < 4; j++) {
-            int k = j + 1;
-            if(k == 3) k = 0;
+            k = j + 1;
+            if(k == 4) k = 0;
             s[j*4 + 0] = (p[j*2 + 0] + 3 * p[k*2 + 0]) / 4;
             s[j*4 + 1] = (p[j*2 + 1] + 3 * p[k*2 + 1]) / 4;
             s[j*4 + 2] = (3 * p[j*2 + 0] + p[k*2 + 0]) / 4;
@@ -294,10 +295,10 @@ void transform_boxes(box_label *boxes, int n,
         float bottom = s[1];
 
         for(int j = 0; j < 8; j++) {
-            if( s[j*2 + 0] < left ) left = s[j*2 + 0];
-            if( s[j*2 + 0] > right ) right = s[j*2 + 0];
-            if( s[j*2 + 1] < top ) top = s[j*2 + 1];
-            if( s[j*2 + 1] > bottom) bottom = s[j*2 + 1];
+            if( s[j*2 + 0] < left   ) left   = s[j*2 + 0];
+            if( s[j*2 + 0] > right  ) right  = s[j*2 + 0];
+            if( s[j*2 + 1] < top    ) top    = s[j*2 + 1];
+            if( s[j*2 + 1] > bottom ) bottom = s[j*2 + 1];
         }
 
         boxes[i].left   = left / net_w;
@@ -305,11 +306,21 @@ void transform_boxes(box_label *boxes, int n,
         boxes[i].top    = top / net_h;
         boxes[i].bottom = bottom / net_h;
 
+        boxes[i].x = (boxes[i].left+boxes[i].right)/2;
+        boxes[i].y = (boxes[i].top+boxes[i].bottom)/2;
 
-        boxes[i].left =  constrain(0, 1, boxes[i].left);
-        boxes[i].right = constrain(0, 1, boxes[i].right);
-        boxes[i].top =   constrain(0, 1, boxes[i].top);
-        boxes[i].bottom =   constrain(0, 1, boxes[i].bottom);
+        if(boxes[i].x < 0 || boxes[i].x > 1 || boxes[i].y < 0 || boxes[i].y > 1) {
+            boxes[i].x = 999999;
+            boxes[i].y = 999999;
+            boxes[i].w = 999999;
+            boxes[i].h = 999999;
+            continue;
+        }
+
+        boxes[i].left   = constrain(0, 1, boxes[i].left);
+        boxes[i].right  = constrain(0, 1, boxes[i].right);
+        boxes[i].top    = constrain(0, 1, boxes[i].top);
+        boxes[i].bottom = constrain(0, 1, boxes[i].bottom);
 
         boxes[i].x = (boxes[i].left+boxes[i].right)/2;
         boxes[i].y = (boxes[i].top+boxes[i].bottom)/2;
@@ -995,6 +1006,7 @@ void data_augmentation(const char *filename,
 {
     float dx = rand_uniform_strong(-jitter, jitter);
     float dy = rand_uniform_strong(-jitter, jitter);
+    float random_scale = rand_uniform_strong(1-jitter, 1 + jitter);
     float rad = rand_uniform(-angle, angle) * TWO_PI / 360.;
 
     //scale
@@ -1008,7 +1020,7 @@ void data_augmentation(const char *filename,
         new_h = h;
         new_w = (im.w * h) / im.h;
     }
-    float scale = new_w / im.w;
+    float scale = new_w / im.w * random_scale;
 
     //T- transform matrix, v - shift vector. new coord: y = T * x + v => T^(-1) * (y - v) = x
     // C - scale matrix, R - rotate matrix, F - matrix mirrow. T = C*R*F
