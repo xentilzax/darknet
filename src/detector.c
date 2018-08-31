@@ -119,7 +119,10 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         img = draw_train_chart(max_img_loss, net.max_batches, number_of_lines, img_size);
 #endif    //OPENCV
 
-    pthread_t load_thread = load_data(args);
+    pthread_t load_thread;// = load_data(args);
+    load_thread = load_data(args);
+    pthread_join(load_thread, 0);
+
     double time;
     int count = 0;
     //while(i*imgs < N*120){
@@ -145,20 +148,16 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             args.w = dim_w;
             args.h = dim_h;
 
-            pthread_join(load_thread, 0);
-            train = buffer;
-            free_data(train);
-            load_thread = load_data(args);
-
             for(i = 0; i < ngpus; ++i){
                 resize_network(nets + i, dim_w, dim_h);
             }
             net = nets[0];
         }
+
         time=what_time_is_it_now();
+        load_thread = load_data(args);
         pthread_join(load_thread, 0);
         train = buffer;
-        load_thread = load_data(args);
 
         /*
            int k;
