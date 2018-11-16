@@ -914,14 +914,10 @@ void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, flo
     list *options = read_data_cfg(datacfg);
     char *valid_images = option_find_str(options, "valid", "data/train.list");
 
-    //network net = load_network(cfgfile, weightfile, 0);
     network net = parse_network_cfg_custom(cfgfile, 1);    // set batch=1
     if (weightfile) {
         load_weights(&net, weightfile);
     }
-    //set_batch_network(&net, 1);
-    //    fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
-    //    srand(time(0));
 
     list *plist = get_paths(valid_images);
     char **paths = (char **)list_to_array(plist);
@@ -930,10 +926,11 @@ void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, flo
     int classes = l.classes;
 
     int m = plist->size;
-    int i=0;
-    int t;
+//    int i=0;
+//    int t;
 
     float nms = 0.45;
+    /*
 
     int nthreads = 1;
     image *val = calloc(nthreads, sizeof(image));
@@ -946,7 +943,7 @@ void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, flo
     args.w = net.w;
     args.h = net.h;
     args.type = LETTERBOX_DATA;
-    /*
+
     for(t = 0; t < nthreads; ++t){
         args.path = paths[i+t];
         args.im = &buf[t];
@@ -979,32 +976,44 @@ void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, flo
         if (nms) do_nms_sort(dets, nboxes, classes, nms);*/
 
     int letterbox = 1;
-    for ( i = 0; i < m; ++i ) {
+    
+    for (int i = 0; i < m; ++i ) {
         char *path = paths[i];
-        image orig = load_image_color(path, 0, 0);
-        image sized = resize_image(orig, net.w, net.h);
+        //image orig = load_image_color(path, 0, 0);
+        image orig = load_image(path,0,0,net.c);
+	image sized = letterbox_image(orig, net.w, net.h);
+//        image sized = resize_image(orig, net.w, net.h);
         char *id = basecfg(path);
         network_predict(net, sized.data);
         int nboxes = 0;
         detection *dets = get_network_boxes(&net, 1, 1, thresh, .5, 0, 1, &nboxes, letterbox);
-        if (nms) do_nms_obj(dets, nboxes, 1, nms);
+        if (nms) 
+	    do_nms_obj(dets, nboxes, classes, nms);
 
         char labelpath[4096];
-        find_replace(path, "images", "results", labelpath);
+        find_replace(path, "JPEGImages", "results", labelpath);
         find_replace(labelpath, ".jpg", ".txt", labelpath);
         find_replace(labelpath, ".JPEG", ".txt", labelpath);
 
         printf("%s\n", path);
-        FILE *fp = fopen(labelpath, "w");
+        FILE *fp = fopen(labelpath, "wb");
 
-        for(int k = 0; k < nboxes; k++) {
-            if (dets[k].prob[0] > thresh) {
-                printf("Person: %.0f%%\n", dets[k].prob[0]*100);
-                box b = dets[k].bbox;
-                fprintf(fp, "0 %f %f %f %f\n", b.x, b.y, b.w, b.h);
+            for (int k = 0; k < nboxes; ++k) {
+                char buff[1024];
+                int class_id = -1;
+                float prob = 0;
+                for (int j = 0; j < classes; ++j) {
+                    if (dets[k].prob[j] > thresh && dets[k].prob[j] > prob) {
+                        prob = dets[k].prob[j];
+                        class_id = j;
+                    }
+                }
+                if (class_id >= 0) {
+		    box b = dets[k].bbox;
+                    sprintf(buff, "%d %2.4f %2.4f %2.4f %2.4f\n", class_id, b.x, b.y, b.w, b.h);
+                    fwrite(buff, sizeof(char), strlen(buff), fp);
+                }
             }
-        }
-        printf("\n");
         fclose(fp);
 
         free_detections(dets, nboxes);
