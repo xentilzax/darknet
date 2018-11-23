@@ -906,122 +906,77 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
     if (reinforcement_fd != NULL) fclose(reinforcement_fd);
 }
 
-//---------------------------------------------------------------------------------------------------------
-void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, float thresh)
-{
-    printf("thresh: %g\n", thresh);
+////---------------------------------------------------------------------------------------------------------
+//void validate_detector_batch(char *datacfg, char *cfgfile, char *weightfile, float thresh)
+//{
+//    printf("thresh: %g\n", thresh);
 
-    list *options = read_data_cfg(datacfg);
-    char *valid_images = option_find_str(options, "valid", "data/train.list");
+//    list *options = read_data_cfg(datacfg);
 
-    network net = parse_network_cfg_custom(cfgfile, 1);    // set batch=1
-    if (weightfile) {
-        load_weights(&net, weightfile);
-    }
+//    network net = parse_network_cfg_custom(cfgfile, 1);    // set batch=1
+//    if (weightfile) {
+//        load_weights(&net, weightfile);
+//    }
 
-    list *plist = get_paths(valid_images);
-    char **paths = (char **)list_to_array(plist);
+//    char *valid_images = option_find_str(options, "valid", "data/train.list");
+//    list *plist = get_paths(valid_images);
+//    char **paths = (char **)list_to_array(plist);
+//    int m = plist->size;
 
-    layer l = net.layers[net.n-1];
-    int classes = l.classes;
+//    layer l = net.layers[net.n-1];
+//    int classes = l.classes;
 
-    int m = plist->size;
-//    int i=0;
-//    int t;
+////    int i=0;
+////    int t;
 
-    float nms = 0.45;
-    /*
+//    float nms = 0.45;
+//    int letterbox = 1;
+//    srand(2222222);
+//    for (int i = 0; i < m; ++i ) {
+//        char *path = paths[i];
+//        //image orig = load_image_color(path, 0, 0);
+//        image orig = load_image(path,0,0,net.c);
+//	image sized = letterbox_image(orig, net.w, net.h);
+////        image sized = resize_image(orig, net.w, net.h);
+//        //char *id = basecfg(path);
+//        network_predict(net, sized.data);
+//        int nboxes = 0;
+//        detection *dets = get_network_boxes(&net, orig.w, orig.h, thresh, .5, 0, 1, &nboxes, letterbox);
+//        if (nms)
+//	    do_nms_obj(dets, nboxes, classes, nms);
 
-    int nthreads = 1;
-    image *val = calloc(nthreads, sizeof(image));
-    image *val_resized = calloc(nthreads, sizeof(image));
-    image *buf = calloc(nthreads, sizeof(image));
-    image *buf_resized = calloc(nthreads, sizeof(image));
-    pthread_t *thr = calloc(nthreads, sizeof(pthread_t));
+//        char labelpath[4096];
+//        find_replace(path, "JPEGImages", "results", labelpath);
+//        find_replace(labelpath, ".jpg", ".txt", labelpath);
+//        find_replace(labelpath, ".JPEG", ".txt", labelpath);
 
-    load_args args = {0};
-    args.w = net.w;
-    args.h = net.h;
-    args.type = LETTERBOX_DATA;
+//        printf("%s\n", path);
+//        FILE *fp = fopen(labelpath, "w");
 
-    for(t = 0; t < nthreads; ++t){
-        args.path = paths[i+t];
-        args.im = &buf[t];
-        args.resized = &buf_resized[t];
-        thr[t] = load_data_in_thread(args);
-    }
-    double start = what_time_is_it_now();
-    for(i = nthreads; i < m + nthreads; i += nthreads){
-        //fprintf(stderr, "complete %d from %d \r", i, m);
-        for(t = 0; t < nthreads && i+t < m; ++t){
-            pthread_join(thr[t], 0);
-            val[t] = buf[t];
-            val_resized[t] = buf_resized[t];
-        }
-        for(t = 0; t < nthreads && i+t < m; ++t){
-            args.path = paths[i+t];
-            args.im = &buf[t];
-            args.resized = &buf_resized[t];
-            thr[t] = load_data_in_thread(args);
-        }
-        for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
-            char *path = paths[i+t-nthreads];
-            char *id = basecfg(path);
-            float *X = val_resized[t].data;
-            network_predict(net, X);
-            int w = val[t].w;
-            int h = val[t].h;
-            int nboxes = 0;
-            detection *dets = get_network_boxes(net, w, h, thresh, 0.5, 0, 1, &nboxes);
-        if (nms) do_nms_sort(dets, nboxes, classes, nms);*/
+//            for (int k = 0; k < nboxes; ++k) {
+//                char buff[1024];
+//                int class_id = -1;
+//                float prob = 0;
+//                for (int j = 0; j < classes; ++j) {
+//                    if (dets[k].prob[j] > thresh && dets[k].prob[j] > prob) {
+//                        prob = dets[k].prob[j];
+//                        class_id = j;
+//                    }
+//                }
+//                if (class_id >= 0) {
+//		    box b = dets[k].bbox;
+//                    sprintf(buff, "%d %2.4f %2.4f %2.4f %2.4f\n", class_id, b.x, b.y, b.w, b.h);
+//                    fwrite(buff, sizeof(char), strlen(buff), fp);
+//                }
+//            }
+//        fclose(fp);
 
-    int letterbox = 1;
-    
-    for (int i = 0; i < m; ++i ) {
-        char *path = paths[i];
-        //image orig = load_image_color(path, 0, 0);
-        image orig = load_image(path,0,0,net.c);
-	image sized = letterbox_image(orig, net.w, net.h);
-//        image sized = resize_image(orig, net.w, net.h);
-        char *id = basecfg(path);
-        network_predict(net, sized.data);
-        int nboxes = 0;
-        detection *dets = get_network_boxes(&net, 1, 1, thresh, .5, 0, 1, &nboxes, letterbox);
-        if (nms) 
-	    do_nms_obj(dets, nboxes, classes, nms);
-
-        char labelpath[4096];
-        find_replace(path, "JPEGImages", "results", labelpath);
-        find_replace(labelpath, ".jpg", ".txt", labelpath);
-        find_replace(labelpath, ".JPEG", ".txt", labelpath);
-
-        printf("%s\n", path);
-        FILE *fp = fopen(labelpath, "wb");
-
-            for (int k = 0; k < nboxes; ++k) {
-                char buff[1024];
-                int class_id = -1;
-                float prob = 0;
-                for (int j = 0; j < classes; ++j) {
-                    if (dets[k].prob[j] > thresh && dets[k].prob[j] > prob) {
-                        prob = dets[k].prob[j];
-                        class_id = j;
-                    }
-                }
-                if (class_id >= 0) {
-		    box b = dets[k].bbox;
-                    sprintf(buff, "%d %2.4f %2.4f %2.4f %2.4f\n", class_id, b.x, b.y, b.w, b.h);
-                    fwrite(buff, sizeof(char), strlen(buff), fp);
-                }
-            }
-        fclose(fp);
-
-        free_detections(dets, nboxes);
-        free(id);
-        free_image(orig);
-        free_image(sized);
-    }
-}
+//        free_detections(dets, nboxes);
+//        //free(id);
+//        free_image(orig);
+//        free_image(sized);
+//    }
+//}
 
 
 #ifdef OPENCV
@@ -1267,9 +1222,12 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
             strtok(input, "\n");
         }
         image im = load_image(input,0,0,net.c);
+	printf("w = %f, h = %f\n", im.w, im.h);
+	printf("thresh = %f, hier_thresh = %f\n", thresh, hier_thresh);
         int letterbox = 0;
         //image sized = resize_image(im, net.w, net.h);
         image sized = letterbox_image(im, net.w, net.h); letterbox = 1;
+	printf("w = %f, h = %f\n", sized.w, sized.h);
         layer l = net.layers[net.n-1];
 
         //box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
@@ -1285,6 +1243,8 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         // if (nms) do_nms_sort_v2(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         //draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
         int nboxes = 0;
+	
+
         detection *dets = get_network_boxes(&net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes, letterbox);
         if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
         draw_detections_v3(im, dets, nboxes, thresh, names, alphabet, l.classes, ext_output);
@@ -1351,6 +1311,89 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     free_network(net);
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------
+void batch_test(char *datacfg, char *cfgfile, char *weightfile, float thresh, float hier_thresh)
+{
+    printf("thresh = %f, hier_thresh = %f\n", thresh, hier_thresh);
+    list *options = read_data_cfg(datacfg);
+    char *valid_images = option_find_str(options, "valid", "data/train.list");
+    list *plist = get_paths(valid_images);
+    char **paths = (char **)list_to_array(plist);
+    int m = plist->size;
+
+    network net = parse_network_cfg_custom(cfgfile, 1); // set batch=1
+    if(weightfile){
+        load_weights(&net, weightfile);
+    }
+
+    fuse_conv_batchnorm(net);
+
+    srand(2222222);
+    double time;
+    char buff[256];
+    char *input = buff;
+    int j;
+    float nms=.45;    // 0.4F
+    
+    for (int k = 0; k < m; ++k ) {
+        char *path = paths[k];
+        printf("%s\n", path);
+
+	image im = load_image(path,0,0,net.c);
+        int letterbox = 0;
+        image sized = letterbox_image(im, net.w, net.h); letterbox = 1;
+        layer l = net.layers[net.n-1];
+
+        float *X = sized.data;
+        //time= what_time_is_it_now();
+        network_predict(net, X);
+        //printf("%s: Predicted in %f seconds.\n", input, (what_time_is_it_now()-time));
+
+        int nboxes = 0;
+
+        detection *dets = get_network_boxes(&net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes, letterbox);
+        if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
+        //draw_detections_v3(im, dets, nboxes, thresh, names, alphabet, l.classes, ext_output);
+	//save_image(im, "predictions");
+
+	char labelpath[4096];
+//	replace_image_to_label(input, labelpath);
+        find_replace(path, "JPEGImages", "results", labelpath);
+        find_replace(labelpath, ".jpg", ".txt", labelpath);
+        find_replace(labelpath, ".JPEG", ".txt", labelpath);
+
+
+            FILE* fw = fopen(labelpath, "wb");
+            int i;
+            for (i = 0; i < nboxes; ++i) {
+                char buff[1024];
+                int class_id = -1;
+                float prob = 0;
+                for (j = 0; j < l.classes; ++j) {
+                    if (dets[i].prob[j] > thresh && dets[i].prob[j] > prob) {
+                        prob = dets[i].prob[j];
+                        class_id = j;
+                    }
+                }
+                if (class_id >= 0) {
+                    sprintf(buff, "%d %2.4f %2.4f %2.4f %2.4f\n", class_id, dets[i].bbox.x, dets[i].bbox.y, dets[i].bbox.w, dets[i].bbox.h);
+                    fwrite(buff, sizeof(char), strlen(buff), fw);
+                }
+            }
+            fclose(fw);
+
+        free_detections(dets, nboxes);
+        free_image(im);
+        free_image(sized);
+    }
+
+    // free memory
+    free_list_contents_kvp(options);
+    free_list(options);
+    free_network(net);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
 void run_detector(int argc, char **argv)
 {
     int dont_show = find_arg(argc, argv, "-dont_show");
@@ -1409,7 +1452,7 @@ void run_detector(int argc, char **argv)
     if(0==strcmp(argv[2], "test")) test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, dont_show, ext_output, save_labels);
     else if(0==strcmp(argv[2], "train")) train_detector(datacfg, cfg, weights, gpus, ngpus, clear, dont_show);
     else if(0==strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
-    else if(0==strcmp(argv[2], "valid_batch")) validate_detector_batch(datacfg, cfg, weights, thresh);
+    else if(0==strcmp(argv[2], "valid_batch")) batch_test(datacfg, cfg, weights, thresh, hier_thresh);
     else if(0==strcmp(argv[2], "recall")) validate_detector_recall(datacfg, cfg, weights);
     else if(0==strcmp(argv[2], "map")) validate_detector_map(datacfg, cfg, weights, thresh);
     else if(0==strcmp(argv[2], "calc_anchors")) calc_anchors(datacfg, num_of_clusters, width, height, show);
